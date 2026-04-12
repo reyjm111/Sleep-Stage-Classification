@@ -2,6 +2,7 @@ from pathlib import Path
 import mne
 import pandas as pd
 import numpy as np
+import gc
 
 def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=True, resampling_freq=200, verbosity=False):
 
@@ -56,7 +57,15 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
         verbose=verbosity
     )
 
-    labels = epochs.events[:, 2]
-    group_ids = [subject] * len(labels)
+    X = epochs.get_data(copy=False).astype(dtype, copy=False)
+    y = epochs.events[:, 2].astype(np.int64, copy=False)
+    groups = np.full(len(y), subject, dtype=object)
 
-    return epochs, labels, group_ids
+    del epochs
+    del raw
+    del ann_df
+    del valid_ann
+    del events
+    gc.collect()
+    
+    return X, y, groups

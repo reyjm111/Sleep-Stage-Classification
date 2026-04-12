@@ -37,11 +37,10 @@ def file_conversion(path):
             print(f"Processing: {eeg_file.name}")
 
             try:
-                epochs, labels, group_ids = preprocess(str(eeg_file), str(ann_file))
+                X, y, groups = preprocess(str(eeg_file), str(ann_file))
 
                 # convert epochs object to numpy array
                 # shape: (n_epochs, n_channels, n_times)
-                X_sub = epochs.get_data(copy=True)
 
                 all_X.append(X_sub)
                 all_y.append(np.asarray(labels))
@@ -54,5 +53,5 @@ def file_conversion(path):
     X = np.concatenate(all_X, axis=0)
     y = np.concatenate(all_y, axis=0)
     groups = np.concatenate(all_groups, axis=0)
-
+    
     return X, y, groups
