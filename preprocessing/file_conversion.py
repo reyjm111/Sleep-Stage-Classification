@@ -2,6 +2,7 @@ import numpy as np
 from pathlib import Path
 
 from .preprocess import preprocess
+from .features import feature_extraction
 
 def file_conversion(path):
 
@@ -37,17 +38,34 @@ def file_conversion(path):
             print(f"Processing: {eeg_file.name}")
 
             try:
-                X, y, groups = preprocess(str(eeg_file), str(ann_file))
+                epochs, y, groups = preprocess(str(eeg_file), str(ann_file)) # preprocess eeg
 
-                # convert epochs object to numpy array
-                # shape: (n_epochs, n_channels, n_times)
+                if epochs is None or y is None or groups is None:
+                    print(f"Skipping {ses_dir}: preprocess returned None")
+                    continue
+                
+                X_features_df = feature_extraction(epochs) # extract features
+                valid_rows = ~X_features_df.isna().all(axis=1) 
 
-                all_X.append(X)
-                all_y.append(np.asarray(y))
-                all_groups.append(np.asarray(groups))
+                if valid_rows.sum() == 0:
+                    print(f"Skipping {ses_dir}: all extracted feature rows are NaN")
+                    continue
+
+                X_features = X_features_df.loc[valid_rows].to_numpy(dtype=np.float32)
+                y_valid = np.asarray(y)[valid_rows.to_numpy()]
+                groups_valid = np.asarray(groups)[valid_rows.to_numpy()]
+
+                print(f"  Feature matrix shape: {X_features.shape}")
+
+                all_X.append(X_features)
+                all_y.append(y_valid)
+                all_groups.append(groups_valid)
 
             except Exception as e:
                 print(f"Failed on {ses_dir}: {e}")
+
+    if len(all_X) == 0:
+        raise ValueError("No valid sessions were processed successfully.")
 
     # combine across all subjects/sessions
     X = np.concatenate(all_X, axis=0)

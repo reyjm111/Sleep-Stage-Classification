@@ -17,14 +17,19 @@ def feature_extraction(epochs):
     nperseg = fs * epoch_len
     eps = 1e-12 # to prevent division by 0
 
+    max_nan_frac_per_ch=0.05
+    min_channels=4
     features = []
 
     # iterate throug each epoch and extract features
     for epoch in epochs:
         # keep only channels with no NaNs
-        valid_epoch = epoch[~np.isnan(epoch).any(axis=1)]
+        nan_frac_per_ch = np.isnan(epoch).mean(axis=1)
 
-        if valid_epoch.shape[0] == 0:
+        # keep channels with limited missingness
+        keep_mask = nan_frac_per_ch <= max_nan_frac_per_ch
+        valid_epoch = epoch[keep_mask]
+        if valid_epoch.shape[0] < min_channels:
             features.append({
                 'delta_abs_bandpower': np.nan,
                 'theta_abs_bandpower': np.nan,
@@ -47,12 +52,59 @@ def feature_extraction(epochs):
                 'spectral_entropy': np.nan,
             })
             continue
+        
+        # fill remaining NaNs in each channel using linear interpolation
+        for ch in range(valid_epoch.shape[0]):
+            x = valid_epoch[ch]
+            nan_mask = np.isnan(x)
 
+            if nan_mask.any():
+                good_idx = np.where(~nan_mask)[0]
+
+                if len(good_idx) == 0:
+                    continue
+                elif len(good_idx) == 1:
+                    x[nan_mask] = x[good_idx[0]]
+                else:
+                    x[nan_mask] = np.interp(
+                        np.where(nan_mask)[0],
+                        good_idx,
+                        x[good_idx]
+                    )
+
+                valid_epoch[ch] = x
+
+        # final safeguard
+        if np.isnan(valid_epoch).any():
+            features.append({
+                'delta_abs_bandpower': np.nan,
+                'theta_abs_bandpower': np.nan,
+                'alpha_abs_bandpower': np.nan,
+                'beta_abs_bandpower': np.nan,
+                'gamma_abs_bandpower': np.nan,
+                'delta_rel_bandpower': np.nan,
+                'theta_rel_bandpower': np.nan,
+                'alpha_rel_bandpower': np.nan,
+                'beta_rel_bandpower': np.nan,
+                'gamma_rel_bandpower': np.nan,
+                'delta_theta_ratio': np.nan,
+                'delta_alpha_ratio': np.nan,
+                'theta_alpha_ratio': np.nan,
+                'delta_beta_ratio': np.nan,
+                'alpha_beta_ratio': np.nan,
+                'hjorth_activity': np.nan,
+                'hjorth_mobility': np.nan,
+                'hjorth_complexity': np.nan,
+                'spectral_entropy': np.nan,
+            })
+            continue
+        
         # extract PSD values 
         f, Pxx = welch(
             valid_epoch,
             fs=fs,
-            nperseg=nperseg
+            nperseg=nperseg, 
+            axis=1
         )
 
         abs_power_features = {}
