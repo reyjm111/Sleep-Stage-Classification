@@ -3,7 +3,7 @@ import mne
 import pandas as pd
 import numpy as np
 
-def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.3, 40), notch_filter=True, resampling_freq=200, verbosity=False):
+def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=True, resampling_freq=200, verbosity=False):
 
     subject = Path(eeg_file_ext).parents[1].name # subject ID
 
@@ -13,7 +13,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.3, 40), notch_filter=T
     raw.filter(bandpass_filter[0], bandpass_filter[1]) # filter eeg
 
     if notch_filter: 
-        raw.notch_filter(60) # reduce electrical interference
+        raw.notch_filter(50) # reduce electrical interference
     
     if resampling_freq is not None:
         raw.resample(resampling_freq) # downsample for better processing time
