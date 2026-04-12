@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 
-from preprocess import preprocess
+from .preprocess import preprocess
 
 def file_conversion(path):
 
