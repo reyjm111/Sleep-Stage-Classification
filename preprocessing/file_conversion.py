@@ -42,9 +42,9 @@ def file_conversion(path):
                 # convert epochs object to numpy array
                 # shape: (n_epochs, n_channels, n_times)
 
-                all_X.append(X_sub)
-                all_y.append(np.asarray(labels))
-                all_groups.append(np.asarray(group_ids))
+                all_X.append(X)
+                all_y.append(np.asarray(y))
+                all_groups.append(np.asarray(groups))
 
             except Exception as e:
                 print(f"Failed on {ses_dir}: {e}")
@@ -53,5 +53,5 @@ def file_conversion(path):
     X = np.concatenate(all_X, axis=0)
     y = np.concatenate(all_y, axis=0)
     groups = np.concatenate(all_groups, axis=0)
-    
+
     return X, y, groups

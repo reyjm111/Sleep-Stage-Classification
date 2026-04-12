@@ -57,7 +57,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
         verbose=verbosity
     )
 
-    X = epochs.get_data(copy=False).astype(dtype, copy=False)
+    X = epochs.get_data(copy=False).astype(np.float32, copy=False)
     y = epochs.events[:, 2].astype(np.int64, copy=False)
     groups = np.full(len(y), subject, dtype=object)
 
@@ -67,5 +67,5 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     del valid_ann
     del events
     gc.collect()
-    
+
     return X, y, groups
