@@ -6,10 +6,14 @@ import gc
 
 def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=True, resampling_freq=200, verbosity=False):
 
+    left_channels = ['ELA', 'ELB', 'ELC','ELT','ELE','ELI']
+    right_channels = ['ERA','ERB','ERC','ERT','ERE','ERI']
+    all_channels = ['ELA', 'ELB', 'ELC','ELT','ELE','ELI','ERA','ERB','ERC','ERT','ERE','ERI']
+
     subject = Path(eeg_file_ext).parents[1].name # subject ID
 
     raw = mne.io.read_raw_eeglab(eeg_file_ext, preload=True) # .set file points to .fdt binary eeg file
-    raw.pick_channels(['ELA', 'ELB', 'ELC','ELT','ELE','ELI','ERA','ERB','ERC','ERT','ERE','ERI'], verbose=verbosity) # selecting ear-eeg channels only
+    raw.pick_channels(all_channels, verbose=verbosity) # selecting ear-eeg channels only
 
     raw_data = raw.get_data()
     nan_frac_per_channel = np.isnan(raw_data).mean(axis=1)
@@ -31,7 +35,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
         print(f"{subject}: skipped, only {len(raw.ch_names)} usable channels remain after NaN screening.")
         del raw
         gc.collect()
-        return None, None, None
+        return None, None, None, None
 
     data = raw.get_data()
 
@@ -52,7 +56,33 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
                 x[good_idx]
             )
 
-    raw._data = data
+    ch_names = raw.ch_names
+
+    left_idx = [ch_names.index(ch) for ch in left_channels if ch in ch_names]
+    right_idx = [ch_names.index(ch) for ch in right_channels if ch in ch_names]
+
+    if len(left_idx) == 0 and len(right_idx) == 0:
+        return None  # skip subject
+
+    # compute averages
+    left_avg = data[left_idx].mean(axis=0) if len(left_idx) > 0 else None
+    right_avg = data[right_idx].mean(axis=0) if len(right_idx) > 0 else None
+
+    # handle missing side
+    if left_avg is None:
+        left_avg = right_avg.copy()
+    if right_avg is None:
+        right_avg = left_avg.copy()
+
+    new_data = np.vstack([left_avg, right_avg])
+
+    info = mne.create_info(
+        ch_names=["Left", "Right"],
+        sfreq=raw.info["sfreq"],
+        ch_types="eeg"
+    )
+
+    raw = mne.io.RawArray(new_data, info)
 
     # final safety check before filtering
     if np.isnan(raw._data).any():
