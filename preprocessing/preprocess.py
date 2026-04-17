@@ -68,8 +68,9 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     
     if resampling_freq is not None:
         raw.resample(resampling_freq, verbose=verbosity) # downsample for better processing time
+    
+    raw_scaled = raw.copy().apply_function(lambda x: (x - x.mean()) / x.std(), picks='all') # added per-record normalization
 
-    raw.apply_function(lambda x: (x - x.mean()) / x.std(), picks='all') # added per-record normalization
 
     ann_df = pd.read_csv(ann_file, sep='\t') # annotation file with onset times, duration, and labels
     ann_df['onset'] = ann_df['onset'].round()
@@ -107,9 +108,20 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
         baseline=None, 
         preload=True, 
         verbose=verbosity
-    )
+    )   
 
-    X = epochs.get_data(copy=False).astype(np.float32, copy=False)
+    epochs_scaled = mne.Epochs(
+        raw_scaled, 
+        events, 
+        event_id=event_id, 
+        tmin=0.0, 
+        tmax=30.0 - 1/fs, 
+        baseline=None, 
+        preload=True, 
+        verbose=verbosity)
+
+    X_raw = epochs.get_data(copy=False).astype(np.float32, copy=False)
+    X_scaled = epochs_scaled.get_data(copy=False).astype(np.float32, copy=False)
     y = epochs.events[:, 2].astype(np.int64, copy=False)
     groups = np.full(len(y), subject, dtype=object)
 
@@ -120,4 +132,4 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     del events
     gc.collect()
 
-    return X, y, groups
+    return X_raw, X_scaled, y, groups
