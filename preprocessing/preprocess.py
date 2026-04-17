@@ -10,7 +10,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
 
     raw = mne.io.read_raw_eeglab(eeg_file_ext, preload=True) # .set file points to .fdt binary eeg file
     raw.pick_channels(['ELA', 'ELB', 'ELC','ELT','ELE','ELI','ERA','ERB','ERC','ERT','ERE','ERI'], verbose=verbosity) # selecting ear-eeg channels only
-
+    
     raw_data = raw.get_data()
     nan_frac_per_channel = np.isnan(raw_data).mean(axis=1)
 
