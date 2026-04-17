@@ -10,7 +10,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
 
     raw = mne.io.read_raw_eeglab(eeg_file_ext, preload=True) # .set file points to .fdt binary eeg file
     raw.pick_channels(['ELA', 'ELB', 'ELC','ELT','ELE','ELI','ERA','ERB','ERC','ERT','ERE','ERI'], verbose=verbosity) # selecting ear-eeg channels only
-    
+
     raw_data = raw.get_data()
     nan_frac_per_channel = np.isnan(raw_data).mean(axis=1)
 
@@ -68,6 +68,8 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     
     if resampling_freq is not None:
         raw.resample(resampling_freq, verbose=verbosity) # downsample for better processing time
+
+    raw.apply_function(lambda x: (x - x.mean()) / x.std(), picks='all') # added per-record normalization
 
     ann_df = pd.read_csv(ann_file, sep='\t') # annotation file with onset times, duration, and labels
     ann_df['onset'] = ann_df['onset'].round()
