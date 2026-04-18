@@ -62,7 +62,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     right_idx = [ch_names.index(ch) for ch in right_channels if ch in ch_names]
 
     if len(left_idx) == 0 and len(right_idx) == 0:
-        return None  # skip subject
+        return None, None, None, None  # skip subject
 
     # compute averages
     left_avg = data[left_idx].mean(axis=0) if len(left_idx) > 0 else None
@@ -89,7 +89,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
         print(f"{subject}: NaNs remain after interpolation, skipping subject.")
         del raw
         gc.collect()
-        return None, None, None
+        return None, None, None, None
     
     raw.filter(bandpass_filter[0], bandpass_filter[1], verbose=verbosity) # filter eeg
 
@@ -99,7 +99,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     if resampling_freq is not None:
         raw.resample(resampling_freq, verbose=verbosity) # downsample for better processing time
     
-    raw_scaled = raw.copy().apply_function(lambda x: (x - x.mean()) / x.std(), picks='all') # added per-record normalization
+    raw_scaled = raw.copy().apply_function(lambda x: (x - x.mean()) / (x.std() + 1e-8), picks='all') # added per-record normalization
 
 
     ann_df = pd.read_csv(ann_file, sep='\t') # annotation file with onset times, duration, and labels
