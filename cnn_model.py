@@ -1,37 +1,33 @@
+import tensorflow as tf
 from tensorflow.keras import layers, models
 
-def build_cnn(input_shape, n_classes=5):
-    model = models.Sequential([
-        
-        # Input: (T, 2)
-        layers.Input(shape=input_shape),
+def build_cnn(input_shape, n_classes):
+    inputs = tf.keras.Input(shape=input_shape)
 
-        # Conv Block 1
-        layers.Conv1D(32, kernel_size=7, strides=2, padding='same'),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-        layers.MaxPooling1D(pool_size=2),
+    # temporal filtering
+    x = tf.keras.layers.Conv1D(32, kernel_size=7, activation='relu', padding='same')(inputs)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPooling1D(2)(x)
 
-        # Conv Block 2
-        layers.Conv1D(64, kernel_size=5, padding='same'),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-        layers.MaxPooling1D(pool_size=2),
+    x = tf.keras.layers.Conv1D(64, kernel_size=5, activation='relu', padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.MaxPooling1D(2)(x)
 
-        # Conv Block 3
-        layers.Conv1D(128, kernel_size=3, padding='same'),
-        layers.BatchNormalization(),
-        layers.ReLU(),
-        layers.MaxPooling1D(pool_size=2),
+    # deeper temporal abstraction
+    x = tf.keras.layers.Conv1D(128, kernel_size=3, activation='relu', padding='same')(x)
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
 
-        # Global pooling
-        layers.GlobalAveragePooling1D(),
+    x = tf.keras.layers.Dense(64, activation='relu')(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
 
-        # Dense head
-        layers.Dense(64, activation='relu'),
-        layers.Dropout(0.5),
+    outputs = tf.keras.layers.Dense(n_classes, activation='softmax')(x)
 
-        layers.Dense(n_classes, activation='softmax')
-    ])
+    model = tf.keras.Model(inputs, outputs)
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(1e-4),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
 
     return model
