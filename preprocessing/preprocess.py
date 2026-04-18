@@ -18,8 +18,8 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     raw_data = raw.get_data()
     nan_frac_per_channel = np.isnan(raw_data).mean(axis=1)
 
-    nan_channel_threshold=0.2
-    min_channels_required=4
+    nan_channel_threshold = 0.2
+    min_channels_required = 4
 
     # identify bad channels
     bad_channels = [

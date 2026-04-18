@@ -46,7 +46,7 @@ def file_conversion(path):
                     continue
                 
                 X_features_df = feature_extraction(epochs) # extract features
-                valid_rows = ~X_features_df.isna().any(axis=1)
+                valid_rows = ~X_features_df.isna().all(axis=1)
                 
                 if valid_rows.sum() == 0:
                     print(f"Skipping {ses_dir}: all extracted feature rows are NaN")

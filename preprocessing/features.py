@@ -19,7 +19,7 @@ def feature_extraction(epochs):
     noverlap=512
     eps = 1e-12 # to prevent division by 0
 
-    max_nan_frac_per_ch=0.05
+    max_nan_frac_per_ch=0.5
     min_channels=1
     features = []
 
@@ -269,11 +269,13 @@ def feature_extraction(epochs):
                 fm.fit(f, Pxx[ch])
 
                 if fm.has_model:
-                    offset, exponent = fm.aperiodic_params_
-                    peaks = fm.peak_params_
+                    offset = fm.get_params('aperiodic_params', 'offset')
+                    exponent = fm.get_params('aperiodic_params', 'exponent')
+                    peaks = fm.get_params('peak_params')
+
                 else:
                     offset, exponent = np.nan, np.nan
-                    peaks = np.nan
+                    peaks = []
 
             except Exception:
                 offset, exponent = np.nan, np.nan
@@ -299,10 +301,10 @@ def feature_extraction(epochs):
             lr_diff = 0.0
 
         specparam_features = {
-            "aperiodic_exponent_mean": np.mean(aperiodic_exponents), 
-            "aperiodic_exponent_std": np.std(aperiodic_exponents), 
-            "aperiodic_offset_mean": np.mean(aperiodic_offsets), 
-            "aperiodic_offset_std": np.std(aperiodic_offsets), 
+            "aperiodic_exponent_mean": np.nanmean(aperiodic_exponents), 
+            "aperiodic_exponent_std": np.nanstd(aperiodic_exponents), 
+            "aperiodic_offset_mean": np.nanmean(aperiodic_offsets), 
+            "aperiodic_offset_std": np.nanstd(aperiodic_offsets), 
             "alpha_peak_power_mean": np.nanmean(alpha_peak_powers),
             "alpha_peak_freq_mean": np.nanmean(alpha_peak_freqs), 
             "aperiodic_exponent_lr_diff": lr_diff
