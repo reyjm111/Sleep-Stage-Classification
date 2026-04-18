@@ -156,6 +156,7 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     groups = np.full(len(y), subject, dtype=object)
 
     del epochs
+    del epochs_scaled
     del raw
     del ann_df
     del valid_ann

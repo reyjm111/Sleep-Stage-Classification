@@ -265,24 +265,30 @@ def feature_extraction(epochs):
 
         for ch in range(Pxx.shape[0]):
 
-            fm.fit(f, Pxx[ch])
+            try:
+                fm.fit(f, Pxx[ch])
 
-            # aperiodic
-            offset, exponent = fm.aperiodic_params_
+                if fm.has_model:
+                    offset, exponent = fm.aperiodic_params_
+                    peaks = fm.peak_params_
+                else:
+                    offset, exponent = np.nan, np.nan
+                    peaks = np.nan
+
+            except Exception:
+                offset, exponent = np.nan, np.nan
+                peaks = []
+
             aperiodic_offsets.append(offset)
             aperiodic_exponents.append(exponent)
 
-            # peaks
-            peaks = fm.peak_params_
-            
-            # extract alpha peak (8–13 Hz)
+            # alpha peak extraction
             alpha_peak = [p for p in peaks if 8 <= p[0] <= 13]
 
             if len(alpha_peak) > 0:
-                best_peak = max(alpha_peak, key=lambda x: x[1])  # highest power
+                best_peak = max(alpha_peak, key=lambda x: x[1])
                 alpha_peak_powers.append(best_peak[1])
                 alpha_peak_freqs.append(best_peak[0])
-
             else:
                 alpha_peak_powers.append(np.nan)
                 alpha_peak_freqs.append(np.nan)
