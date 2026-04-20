@@ -12,7 +12,8 @@ from metric_visualization import (
 import tensorflow as tf
 from tensorflow.keras.utils import to_categorical
 from cnn_model import build_cnn, build_hybrid_cnn_lstm_attention
-from sklearn.utils.class_weight import compute_class_weight
+from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
+from sklearn.preprocessing import StandardScaler
 
 def make_context_windows(
     X_signal,
@@ -84,7 +85,7 @@ def make_context_windows(
 
     return Xs_ctx, y_ctx, g_ctx
 
-def smooth_proba_grouped(y_proba, groups, window=5):
+def smooth_proba_grouped(y_proba, groups, window=3):
     """
     Smooth probabilities within each group (subject).
 
@@ -116,7 +117,7 @@ def smooth_proba_grouped(y_proba, groups, window=5):
 
     return smoothed
 
-def train(X, y, groups, model, n_splits=5, task='5-class', random_state=42):
+def train(X, y, groups, model, n_splits=5, task='5-class', smoothing=True, random_state=42):
     
     cv = StratifiedGroupKFold(
         n_splits=n_splits,
@@ -144,25 +145,49 @@ def train(X, y, groups, model, n_splits=5, task='5-class', random_state=42):
         y_train, y_test = y[train_idx], y[test_idx]
 
         fold_model = clone(model)
-        fold_model.fit(X_train, y_train)
 
-        if hasattr(fold_model, "predict_proba"):
-            y_proba = fold_model.predict_proba(X_test)
+        if fold_model.__class__.__name__ == "XGBClassifier":
 
-            # apply smoothing
-            y_proba = smooth_proba_grouped(
-                y_proba,
-                groups[test_idx],
-                window=5
+            y_train_xgb = y_train - 1
+
+            sample_weights = compute_sample_weight(
+                class_weight="balanced",
+                y=y_train
             )
 
-            # normalize
-            y_proba = y_proba / (y_proba.sum(axis=1, keepdims=True) + 1e-8)
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
 
-            y_pred = np.argmax(y_proba, axis=1) + 1
+            fold_model.fit(
+                X_train_scaled,
+                y_train_xgb,
+                sample_weight=sample_weights,
+                eval_set=[(X_test_scaled, y_test - 1)],
+                verbose=False
+            )
+
+            y_proba = fold_model.predict_proba(X_test_scaled)
+
         else:
-            y_pred = fold_model.predict(X_test)
-            y_proba = None
+            fold_model.fit(X_train, y_train)
+
+            if hasattr(fold_model, "predict_proba"):
+                y_proba = fold_model.predict_proba(X_test)
+            else:
+                y_pred = fold_model.predict(X_test)
+                y_proba = None
+
+        if y_proba is not None:
+            if smoothing:
+                y_proba = smooth_proba_grouped(
+                    y_proba,
+                    groups[test_idx],
+                    window=5
+                )
+
+            y_proba = y_proba / (y_proba.sum(axis=1, keepdims=True) + 1e-8)
+            y_pred = np.argmax(y_proba, axis=1) + 1
 
         fold_metrics = compute_fold_metrics(
             y_true=y_test,
