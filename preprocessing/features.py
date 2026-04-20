@@ -1,7 +1,62 @@
-from scipy.signal import welch
+from scipy.signal import welch, butter, filtfilt
+from scipy.stats import kurtosis, skew
 import numpy as np
 import pandas as pd
 from specparam import SpectralModel
+from antropy import perm_entropy, higuchi_fd
+
+ALL_FEATURE_KEYS = [
+    # bandpower
+    'delta_abs_bandpower','theta_abs_bandpower','alpha_abs_bandpower','beta_abs_bandpower','gamma_abs_bandpower',
+    'delta_std_bandpower','theta_std_bandpower','alpha_std_bandpower','beta_std_bandpower','gamma_std_bandpower',
+    'delta_lr_diff','theta_lr_diff','alpha_lr_diff','beta_lr_diff','gamma_lr_diff',
+
+    # relative
+    'delta_rel_bandpower','theta_rel_bandpower','alpha_rel_bandpower','beta_rel_bandpower','gamma_rel_bandpower',
+
+    # ratios
+    'delta_theta_ratio','delta_alpha_ratio','theta_alpha_ratio','delta_beta_ratio', 'high_freq_ratio', 
+    'alpha_beta_ratio','theta_beta_ratio','alpha_delta_ratio','theta_delta_ratio',
+
+    # peak
+    'peak_frequency',
+
+    # hjorth
+    'hjorth_activity','hjorth_mobility','hjorth_complexity',
+
+    # entropy
+    'spectral_entropy',
+
+    # specparam
+    'aperiodic_exponent_mean','aperiodic_exponent_std',
+    'aperiodic_offset_mean','aperiodic_offset_std',
+    'aperiodic_exponent_lr_diff',
+
+    # new features
+    'sef95','perm_entropy','higuchi_fd','kurtosis','skewness',
+    'line_length','temporal_variance',
+    'spindle_count','spindle_power',
+    'zcr','rms'
+]
+
+def bandpass(signal, fs, low, high):
+
+            b, a = butter(4, [low/(fs/2), high/(fs/2)], btype='band')
+
+            return filtfilt(b, a, signal)
+
+def chunk_var(sig, n=4):
+
+            chunks = np.array_split(sig, n)
+
+            return np.var([np.var(c) for c in chunks])
+
+def spectral_edge_frequency(freqs, psd, percentile=0.95):
+
+            cumulative = np.cumsum(psd)
+            cumulative = cumulative / (cumulative[-1] + 1e-12)
+
+            return freqs[np.searchsorted(cumulative, percentile)]
 
 def feature_extraction(epochs):
 
@@ -14,7 +69,6 @@ def feature_extraction(epochs):
     }
 
     fs = 200
-    epoch_len = 30
     nperseg = 1024
     noverlap=512
     eps = 1e-12 # to prevent division by 0
@@ -32,64 +86,7 @@ def feature_extraction(epochs):
         keep_mask = nan_frac_per_ch <= max_nan_frac_per_ch
         valid_epoch = epoch[keep_mask]
         if valid_epoch.shape[0] < min_channels:
-            features.append({
-                # bandpower
-                'delta_abs_bandpower': np.nan,
-                'theta_abs_bandpower': np.nan,
-                'alpha_abs_bandpower': np.nan,
-                'beta_abs_bandpower': np.nan,
-                'gamma_abs_bandpower': np.nan,
-
-                'delta_std_bandpower': np.nan,
-                'theta_std_bandpower': np.nan,
-                'alpha_std_bandpower': np.nan,
-                'beta_std_bandpower': np.nan,
-                'gamma_std_bandpower': np.nan,
-
-                # LR diff
-                'delta_lr_diff': np.nan,
-                'theta_lr_diff': np.nan,
-                'alpha_lr_diff': np.nan,
-                'beta_lr_diff': np.nan,
-                'gamma_lr_diff': np.nan,
-
-                # relative
-                'delta_rel_bandpower': np.nan,
-                'theta_rel_bandpower': np.nan,
-                'alpha_rel_bandpower': np.nan,
-                'beta_rel_bandpower': np.nan,
-                'gamma_rel_bandpower': np.nan,
-
-                # ratios
-                'delta_theta_ratio': np.nan,
-                'delta_alpha_ratio': np.nan,
-                'theta_alpha_ratio': np.nan,
-                'delta_beta_ratio': np.nan,
-                'alpha_beta_ratio': np.nan,
-                'theta_beta_ratio': np.nan,
-                'alpha_delta_ratio': np.nan,
-                'theta_delta_ratio': np.nan,
-
-                # peak
-                'peak_frequency': np.nan,
-
-                # Hjorth
-                'hjorth_activity': np.nan,
-                'hjorth_mobility': np.nan,
-                'hjorth_complexity': np.nan,
-
-                # entropy
-                'spectral_entropy': np.nan,
-
-                # specparam
-                'aperiodic_exponent_mean': np.nan,
-                'aperiodic_exponent_std': np.nan,
-                'aperiodic_offset_mean': np.nan,
-                'aperiodic_offset_std': np.nan,
-                'alpha_peak_power_mean': np.nan,
-                'alpha_peak_freq_mean': np.nan,
-                'aperiodic_exponent_lr_diff': np.nan,
-            })
+            features.append({k: np.nan for k in ALL_FEATURE_KEYS})
             continue
         
         # fill remaining NaNs in each channel using linear interpolation
@@ -115,64 +112,7 @@ def feature_extraction(epochs):
 
         # final safeguard
         if np.isnan(valid_epoch).any():
-            features.append({
-                # bandpower
-                'delta_abs_bandpower': np.nan,
-                'theta_abs_bandpower': np.nan,
-                'alpha_abs_bandpower': np.nan,
-                'beta_abs_bandpower': np.nan,
-                'gamma_abs_bandpower': np.nan,
-
-                'delta_std_bandpower': np.nan,
-                'theta_std_bandpower': np.nan,
-                'alpha_std_bandpower': np.nan,
-                'beta_std_bandpower': np.nan,
-                'gamma_std_bandpower': np.nan,
-
-                # LR diff
-                'delta_lr_diff': np.nan,
-                'theta_lr_diff': np.nan,
-                'alpha_lr_diff': np.nan,
-                'beta_lr_diff': np.nan,
-                'gamma_lr_diff': np.nan,
-
-                # relative
-                'delta_rel_bandpower': np.nan,
-                'theta_rel_bandpower': np.nan,
-                'alpha_rel_bandpower': np.nan,
-                'beta_rel_bandpower': np.nan,
-                'gamma_rel_bandpower': np.nan,
-
-                # ratios
-                'delta_theta_ratio': np.nan,
-                'delta_alpha_ratio': np.nan,
-                'theta_alpha_ratio': np.nan,
-                'delta_beta_ratio': np.nan,
-                'alpha_beta_ratio': np.nan,
-                'theta_beta_ratio': np.nan,
-                'alpha_delta_ratio': np.nan,
-                'theta_delta_ratio': np.nan,
-
-                # peak
-                'peak_frequency': np.nan,
-
-                # Hjorth
-                'hjorth_activity': np.nan,
-                'hjorth_mobility': np.nan,
-                'hjorth_complexity': np.nan,
-
-                # entropy
-                'spectral_entropy': np.nan,
-
-                # specparam
-                'aperiodic_exponent_mean': np.nan,
-                'aperiodic_exponent_std': np.nan,
-                'aperiodic_offset_mean': np.nan,
-                'aperiodic_offset_std': np.nan,
-                'alpha_peak_power_mean': np.nan,
-                'alpha_peak_freq_mean': np.nan,
-                'aperiodic_exponent_lr_diff': np.nan,
-            })
+            features.append({k: np.nan for k in ALL_FEATURE_KEYS})
             continue
         
         # extract PSD values 
@@ -225,6 +165,7 @@ def feature_extraction(epochs):
         ratio_features["theta_beta_ratio"] = abs_power_features["theta_abs_bandpower"] / (abs_power_features["beta_abs_bandpower"] + eps)
         ratio_features["alpha_delta_ratio"] = abs_power_features["alpha_abs_bandpower"] / (abs_power_features["delta_abs_bandpower"] + eps)
         ratio_features["theta_delta_ratio"] = abs_power_features["theta_abs_bandpower"] / (abs_power_features["delta_abs_bandpower"] + eps)
+        ratio_features["high_freq_ratio"] = (abs_power_features["beta_abs_bandpower"] + abs_power_features["gamma_abs_bandpower"]) / (total_power + eps)
 
         # Hjorth parameters
         activity_per_ch = np.var(valid_epoch, axis=1) # variance of the epoch signal
@@ -251,49 +192,31 @@ def feature_extraction(epochs):
         spectral_entropy_features["spectral_entropy"] = np.mean(entropy_per_ch)
 
         # 1/f features
-        fm = SpectralModel(
-            peak_width_limits=[1, 12],
-            max_n_peaks=6,
-            min_peak_height=0.1,
-            verbose=False
-        )
-        
         aperiodic_exponents = []
         aperiodic_offsets = []
-        alpha_peak_powers = []
-        alpha_peak_freqs = []
 
         for ch in range(Pxx.shape[0]):
 
+            fm = SpectralModel(
+            peak_width_limits=[1, 12],
+            max_n_peaks=6,
+            min_peak_height=0.1,
+            verbose=False)
+
             try:
-                fm.fit(f, Pxx[ch])
+                mask = (f >= 1) & (f <= 40)
+                fm.fit(f[mask], Pxx[ch][mask])
 
                 if fm.has_model:
-                    offset = fm.get_params('aperiodic_params', 'offset')
-                    exponent = fm.get_params('aperiodic_params', 'exponent')
-                    peaks = fm.get_params('peak_params')
-
+                    offset, exponent = fm.get_params('aperiodic')
                 else:
                     offset, exponent = np.nan, np.nan
-                    peaks = []
 
             except Exception:
                 offset, exponent = np.nan, np.nan
-                peaks = []
 
             aperiodic_offsets.append(offset)
             aperiodic_exponents.append(exponent)
-
-            # alpha peak extraction
-            alpha_peak = [p for p in peaks if 8 <= p[0] <= 13]
-
-            if len(alpha_peak) > 0:
-                best_peak = max(alpha_peak, key=lambda x: x[1])
-                alpha_peak_powers.append(best_peak[1])
-                alpha_peak_freqs.append(best_peak[0])
-            else:
-                alpha_peak_powers.append(np.nan)
-                alpha_peak_freqs.append(np.nan)
 
         if len(aperiodic_exponents) == 2:
             lr_diff = aperiodic_exponents[0] - aperiodic_exponents[1]
@@ -304,11 +227,70 @@ def feature_extraction(epochs):
             "aperiodic_exponent_mean": np.nanmean(aperiodic_exponents), 
             "aperiodic_exponent_std": np.nanstd(aperiodic_exponents), 
             "aperiodic_offset_mean": np.nanmean(aperiodic_offsets), 
-            "aperiodic_offset_std": np.nanstd(aperiodic_offsets), 
-            "alpha_peak_power_mean": np.nanmean(alpha_peak_powers),
-            "alpha_peak_freq_mean": np.nanmean(alpha_peak_freqs), 
+            "aperiodic_offset_std": np.nanstd(aperiodic_offsets),
             "aperiodic_exponent_lr_diff": lr_diff
         }
+
+        # spectral edge frequency
+        sef_per_ch = [spectral_edge_frequency(f, Pxx[ch]) for ch in range(Pxx.shape[0])]
+
+        # Permutation entropy
+        pe_per_ch = [perm_entropy(valid_epoch[ch], normalize=True) for ch in range(valid_epoch.shape[0])]
+
+        # Fractal dimension
+        fd_per_ch = [higuchi_fd(valid_epoch[ch]) for ch in range(valid_epoch.shape[0])]
+
+        # Kurtosis
+        kurt_per_ch = [kurtosis(valid_epoch[ch]) for ch in range(valid_epoch.shape[0])]
+
+        # Skew
+        skew_per_ch = [skew(valid_epoch[ch]) for ch in range(valid_epoch.shape[0])]
+
+        # Line length
+        line_length = np.mean([np.sum(np.abs(np.diff(valid_epoch[ch]))) for ch in range(valid_epoch.shape[0])])
+
+        # Zero Crossings
+        zcr = np.mean([np.mean(np.diff(np.sign(valid_epoch[ch])) != 0)for ch in range(valid_epoch.shape[0])])
+
+        # RMS
+        rms = np.mean([np.sqrt(np.mean(valid_epoch[ch]**2))for ch in range(valid_epoch.shape[0])])
+
+        # Spindles
+        spindle_counts = []
+        spindle_power = []
+
+        for ch in range(valid_epoch.shape[0]):
+            sig = bandpass(valid_epoch[ch], fs, 11, 16)
+
+            envelope = np.abs(sig)
+            threshold = np.percentile(envelope, 95)
+            events = envelope > threshold
+            count = np.sum(np.diff(events.astype(int)) == 1)
+
+            spindle_counts.append(count)
+            spindle_power.append(np.mean(envelope))
+
+        spindle_features = {
+            "spindle_count": np.mean(spindle_counts),
+            "spindle_power": np.mean(spindle_power),
+        }
+
+        # Temporal variability
+        temporal_var = np.mean([chunk_var(valid_epoch[ch])for ch in range(valid_epoch.shape[0])])
+
+        other_features = {
+            "sef95": np.nanmean(sef_per_ch),
+            "perm_entropy": np.nanmean(pe_per_ch),
+            "higuchi_fd": np.nanmean(fd_per_ch),
+            "kurtosis": np.nanmean(kurt_per_ch),
+            "skewness": np.nanmean(skew_per_ch),
+            "line_length": line_length,
+            "temporal_variance": temporal_var,
+            "spindle_count": spindle_features["spindle_count"],
+            "spindle_power": spindle_features["spindle_power"], 
+            "zcr": zcr, 
+            "rms": rms, 
+        }     
 
         epoch_features = (
             abs_power_features
@@ -317,7 +299,8 @@ def feature_extraction(epochs):
             | peak_features
             | hjorth_features
             | spectral_entropy_features
-            | specparam_features
+            | specparam_features 
+            | other_features
         )
 
         features.append(epoch_features)
