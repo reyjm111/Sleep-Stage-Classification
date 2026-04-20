@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import gc
 
-def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=True, resampling_freq=200, verbosity=False):
+def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.5, 45), notch_filter=True, resampling_freq=200, verbosity=False):
 
     left_channels = ['ELA', 'ELB', 'ELC','ELT','ELE','ELI']
     right_channels = ['ERA','ERB','ERC','ERT','ERE','ERI']
@@ -98,9 +98,6 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
     
     if resampling_freq is not None:
         raw.resample(resampling_freq, verbose=verbosity) # downsample for better processing time
-    
-    raw_scaled = raw.copy().apply_function(lambda x: (x - x.mean()) / (x.std() + 1e-8), picks='all') # added per-record normalization
-
 
     ann_df = pd.read_csv(ann_file, sep='\t') # annotation file with onset times, duration, and labels
     ann_df['onset'] = ann_df['onset'].round()
@@ -140,23 +137,12 @@ def preprocess(eeg_file_ext, ann_file, bandpass_filter=(0.1, 100), notch_filter=
         verbose=verbosity
     )   
 
-    epochs_scaled = mne.Epochs(
-        raw_scaled, 
-        events, 
-        event_id=event_id, 
-        tmin=0.0, 
-        tmax=30.0 - 1/fs, 
-        baseline=None, 
-        preload=True, 
-        verbose=verbosity)
-
     X_raw = epochs.get_data(copy=False).astype(np.float32, copy=False)
-    X_scaled = epochs_scaled.get_data(copy=False).astype(np.float32, copy=False)
+    X_scaled = (X_raw - X_raw.mean(axis=2, keepdims=True)) / (X_raw.std(axis=2, keepdims=True) + 1e-6)
     y = epochs.events[:, 2].astype(np.int64, copy=False)
     groups = np.full(len(y), subject, dtype=object)
 
     del epochs
-    del epochs_scaled
     del raw
     del ann_df
     del valid_ann
