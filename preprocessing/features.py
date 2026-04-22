@@ -78,7 +78,7 @@ def feature_extraction(epochs):
         'gamma': (30, 45),
     }
 
-    fs = epochs.info["sfreq"]
+    fs = 200
     nperseg = 1024
     noverlap = 512
     eps = 1e-12 # to prevent division by 0
