@@ -196,32 +196,40 @@ def feature_extraction(epochs):
         aperiodic_offsets = []
 
         for ch in range(Pxx.shape[0]):
-
             fm = SpectralModel(
-            peak_width_limits=[1, 12],
-            max_n_peaks=6,
-            min_peak_height=0.1,
-            verbose=False)
+                peak_width_limits=[1, 12],
+                max_n_peaks=6,
+                min_peak_height=0.1,
+                verbose=False
+            )
 
             try:
                 mask = (f >= 1) & (f <= 40)
-                fm.fit(f[mask], Pxx[ch][mask])
+                freqs = f[mask]
+                psd = Pxx[ch][mask]
 
-                if fm.has_model:
-                    offset, exponent = fm.get_params('aperiodic')
-                else:
+                valid = np.isfinite(freqs) & np.isfinite(psd) & (psd > 0)
+                freqs = freqs[valid]
+                psd = psd[valid]
+
+                if len(freqs) < 3:
                     offset, exponent = np.nan, np.nan
+                else:
+                    fm.fit(freqs, psd)
+                    offset, exponent = fm.get_params('aperiodic')
 
-            except Exception:
+            except Exception as e:
+                print(f"Channel {ch} failed: {e}")
                 offset, exponent = np.nan, np.nan
 
             aperiodic_offsets.append(offset)
             aperiodic_exponents.append(exponent)
 
-        if len(aperiodic_exponents) == 2:
-            lr_diff = aperiodic_exponents[0] - aperiodic_exponents[1]
+        valid_exp = np.asarray(aperiodic_exponents, dtype=float)
+        if len(valid_exp) == 2 and np.all(np.isfinite(valid_exp)):
+            lr_diff = valid_exp[0] - valid_exp[1]
         else:
-            lr_diff = 0.0
+            lr_diff = np.nan
 
         specparam_features = {
             "aperiodic_exponent_mean": np.nanmean(aperiodic_exponents), 
