@@ -52,11 +52,21 @@ def chunk_var(sig, n=4):
             return np.var([np.var(c) for c in chunks])
 
 def spectral_edge_frequency(freqs, psd, percentile=0.95):
+    freqs = np.asarray(freqs)
+    psd = np.asarray(psd)
 
-            cumulative = np.cumsum(psd)
-            cumulative = cumulative / (cumulative[-1] + 1e-12)
+    if len(freqs) == 0 or len(psd) == 0:
+        return np.nan
 
-            return freqs[np.searchsorted(cumulative, percentile)]
+    total_power = np.sum(psd)
+    if not np.isfinite(total_power) or total_power <= 0:
+        return np.nan
+
+    cumulative = np.cumsum(psd) / total_power
+    idx = np.searchsorted(cumulative, percentile, side="left")
+    idx = min(idx, len(freqs) - 1)
+
+    return freqs[idx]
 
 def feature_extraction(epochs):
 
@@ -68,9 +78,9 @@ def feature_extraction(epochs):
         'gamma': (30, 45),
     }
 
-    fs = 200
+    fs = epochs.info["sfreq"]
     nperseg = 1024
-    noverlap=512
+    noverlap = 512
     eps = 1e-12 # to prevent division by 0
 
     max_nan_frac_per_ch=0.5
