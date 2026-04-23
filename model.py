@@ -2,12 +2,14 @@ from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 
 def build_rf_model(
-    n_estimators=500,
-    max_depth=10,
+    n_estimators=1000,
+    max_depth=11,
     min_samples_split=2,
-    min_samples_leaf=1,
+    min_samples_leaf=2,
     max_features="sqrt",
-    class_weight="balanced_subsample",
+    class_weight="balanced_subsample", 
+    bootstrap=True, 
+    max_samples=0.75, 
     random_state=42,
     n_jobs=-1,
 ):
@@ -17,22 +19,23 @@ def build_rf_model(
         min_samples_split=min_samples_split,
         min_samples_leaf=min_samples_leaf,
         max_features=max_features,
-        class_weight=class_weight,
+        class_weight=class_weight, 
+        bootstrap=bootstrap, 
+        max_samples=max_samples, 
         random_state=random_state,
         n_jobs=n_jobs,
     )
 
 def build_xgb_model(
-    n_estimators=500,
-    max_depth=5,
-    learning_rate=0.05,
+    n_estimators=700,
+    max_depth=4,
+    learning_rate=0.03,
     subsample=0.8,
-    colsample_bytree=0.8,
-    reg_lambda=1.0,
-    reg_alpha=0.0,
-    gamma=0,
-    min_child_weight=1,
-    scale_pos_weight=None,
+    colsample_bytree=0.7,
+    reg_lambda=2.0,
+    reg_alpha=1.0,
+    gamma=1.0,
+    min_child_weight=5,
     random_state=42,
     n_jobs=-1,
 ):
@@ -47,10 +50,8 @@ def build_xgb_model(
         reg_alpha=reg_alpha,
         gamma=gamma,
         min_child_weight=min_child_weight,
-        scale_pos_weight=scale_pos_weight,
         objective="multi:softprob", 
         eval_metric="mlogloss",
-        use_label_encoder=False,
         random_state=random_state,
         n_jobs=n_jobs,
         tree_method="hist"
