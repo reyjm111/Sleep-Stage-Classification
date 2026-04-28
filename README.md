@@ -139,26 +139,45 @@ The model achieved strong performance on multi-class sleep stage classification 
 Mean cross-validation performance:
 
 Accuracy: 0.7886
+
 Balanced Accuracy: 0.7958
+
 Precision (Macro): 0.7324
+
 Recall (Macro): 0.7958
+
 F1-score (Macro): 0.7443
+
 Precision (Weighted): 0.8408
+
 Recall (Weighted): 0.7886
+
 F1-score (Weighted): 0.7994
+
 ROC-AUC (OVR, Weighted): 0.9216
+
 Key Insights
+
 Combining CNN + Random Forest improved robustness compared to standalone models
+
 Balanced accuracy exceeded overall accuracy, indicating strong performance on minority classes
+
 Temporal context windows and smoothing significantly improved predictions
+
 Feature engineering complemented deep learning by capturing domain-specific signal properties
+
 Group-aware validation was critical for realistic performance estimation
+
 Future Work
 
 Potential improvements include:
 
 expanding to full 5-stage sleep classification (Wake, REM, N1, N2, N3)
+
 exploring transformer-based sequence models
+
 optimizing CNN architecture and hyperparameters
+
 incorporating additional biosignals (e.g., ECG, respiration)
+
 deploying real-time sleep staging for wearable devices
