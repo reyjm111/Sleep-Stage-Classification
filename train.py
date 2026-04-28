@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.base import clone
 from sklearn.model_selection import StratifiedGroupKFold
 
@@ -7,7 +8,8 @@ from metric_visualization import (
     summarize_cv_results,
     print_cv_summary,
     print_class_distribution,
-    print_full_classification_report,
+    print_full_classification_report, 
+    plot_training_history
 )
 import tensorflow as tf
 from tensorflow.keras.utils import to_categorical
@@ -443,20 +445,19 @@ def sleep_model_train(
     X_features,
     y,
     groups,
-    rf_weight=0.6,
+    rf_weight=0.35,
     n_splits=5,
     n_epochs=40,
     batch_size=8,
-    context=1,
-    smoothing_window=5,
+    context=5,
+    smoothing_window=7,
     random_state=42
 ):
     """
-    Strict training for:
-    CNN + Features + RF ensemble
+    FINAL BEST MODEL RUN
     """
 
-    print("\nRunning BEST MODEL (STRICT)")
+    print("\n RUNNING FINAL BEST MODEL")
 
     # 3-class mapping
     y = y.copy()
@@ -476,6 +477,7 @@ def sleep_model_train(
     n_classes = len(class_labels)
 
     all_results, all_y_true, all_y_pred, all_cms = [], [], [], []
+    histories = []
 
     cv = StratifiedGroupKFold(
         n_splits=n_splits,
@@ -505,11 +507,11 @@ def sleep_model_train(
         Xf_train = (Xf_train - mean) / std
         Xf_test  = (Xf_test  - mean) / std
 
-        # --- Labels ---
+        # Labels
         y_train_oh = tf.keras.utils.to_categorical(y_train - 1, n_classes)
         y_test_oh  = tf.keras.utils.to_categorical(y_test  - 1, n_classes)
 
-        # --- Class weights ---
+        # Class weights (slightly boosted for minorities)
         cw = compute_class_weight(
             class_weight="balanced",
             classes=np.unique(y_train),
@@ -519,7 +521,7 @@ def sleep_model_train(
             label - 1: weight for label, weight in zip(np.unique(y_train), cw)
         }
 
-        # CNN Model
+        # Model
         model = sleep_cnn_model(
             signal_input_shape=Xs_train.shape[1:],
             feature_input_shape=Xf_train.shape[1],
@@ -563,9 +565,9 @@ def sleep_model_train(
             verbose=2
         )
 
-        print(f"Final val acc: {history.history['val_accuracy'][-1]:.4f}")
+        histories.append(history.history)
 
-        # CNN Predictions
+        # CNN predictions
         cnn_proba = model.predict(
             {
                 "signal_input": Xs_test,
@@ -575,10 +577,10 @@ def sleep_model_train(
             verbose=0
         )
 
-        # RF Training
+        # RF
         rf_proba = train_rf_fold(Xf_train, y_train, Xf_test)
 
-        # CNN + RF Ensemble
+        # Ensemble
         final_proba = rf_weight * rf_proba + (1 - rf_weight) * cnn_proba
 
         # Smoothing
@@ -612,14 +614,18 @@ def sleep_model_train(
         all_cms.append(fold_metrics["cm"])
 
         tf.keras.backend.clear_session()
-        del model, cnn_proba, rf_proba
+        del model, cnn_proba, rf_proba, final_proba
         gc.collect()
 
+    # Summary
     summary = summarize_cv_results(all_results)
 
     print("\nFINAL SUMMARY:")
     print_cv_summary(summary)
     print_full_classification_report(all_y_true, all_y_pred, class_labels)
+
+    # Plot training curves
+    plot_training_history(histories)
 
     return {
         "fold_results": all_results,
@@ -627,5 +633,203 @@ def sleep_model_train(
         "all_y_true": np.array(all_y_true),
         "all_y_pred": np.array(all_y_pred),
         "cms": all_cms,
-        "class_labels": class_labels
+        "class_labels": class_labels,
+        "histories": histories
     }
+
+def sleep_model_train_weight_smoothing_sweep(
+    X_signal,
+    X_features,
+    y,
+    groups,
+    rf_weights=[0.3, 0.5, 0.6, 0.7, 0.8],
+    smoothing_windows=[1, 3, 5, 7],
+    n_splits=4,
+    n_epochs=40,
+    batch_size=8,
+    context=1,
+    random_state=42
+):
+
+    print("\nRunning WEIGHT + SMOOTHING SWEEP")
+
+    y = y.copy()
+    y[y >= 3] = 3
+
+    print_class_distribution(y)
+
+    # Context
+    X_signal, X_features, y, groups = make_context_windows(
+        X_signal, y, groups, context=context, X_features=X_features
+    )
+
+    X_signal = np.asarray(X_signal, dtype=np.float32)
+    X_features = np.asarray(X_features, dtype=np.float32)
+
+    class_labels = np.sort(np.unique(y))
+    n_classes = len(class_labels)
+
+    # 🔥 store results per (weight, smoothing)
+    results = {
+        (w, s): []
+        for w in rf_weights
+        for s in smoothing_windows
+    }
+
+    cv = StratifiedGroupKFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=random_state
+    )
+
+    for fold, (train_idx, test_idx) in enumerate(
+        cv.split(X_signal, y, groups=groups), start=1
+    ):
+        print(f"\n================ Fold {fold}/{n_splits} ================")
+
+        # Split
+        Xs_train = X_signal[train_idx]
+        Xs_test  = X_signal[test_idx]
+        Xf_train = X_features[train_idx]
+        Xf_test  = X_features[test_idx]
+        y_train  = y[train_idx]
+        y_test   = y[test_idx]
+        groups_test = groups[test_idx]
+
+        # reshape
+        Xs_train = np.transpose(Xs_train, (0, 1, 3, 2))
+        Xs_test  = np.transpose(Xs_test,  (0, 1, 3, 2))
+
+        # Normalize features
+        mean = Xf_train.mean(axis=0, keepdims=True)
+        std  = Xf_train.std(axis=0, keepdims=True) + 1e-6
+        Xf_train = (Xf_train - mean) / std
+        Xf_test  = (Xf_test  - mean) / std
+
+        # Labels
+        y_train_oh = tf.keras.utils.to_categorical(y_train - 1, n_classes)
+        y_test_oh  = tf.keras.utils.to_categorical(y_test  - 1, n_classes)
+
+        # Class weights
+        cw = compute_class_weight(
+            class_weight="balanced",
+            classes=np.unique(y_train),
+            y=y_train
+        )
+        class_weights = {
+            label - 1: weight for label, weight in zip(np.unique(y_train), cw)
+        }
+
+        # --- Build model ---
+        model = sleep_cnn_model(
+            signal_input_shape=Xs_train.shape[1:],
+            feature_input_shape=Xf_train.shape[1],
+            n_classes=n_classes
+        )
+
+        # --- Callbacks (RESTORED) ---
+        callbacks = [
+            tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss",
+                patience=6,
+                restore_best_weights=True
+            ),
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor="val_loss",
+                factor=0.5,
+                patience=3,
+                min_lr=1e-6,
+                verbose=1
+            )
+        ]
+
+        # --- Train CNN ONCE ---
+        history = model.fit(
+            {
+                "signal_input": Xs_train,
+                "feature_input": Xf_train
+            },
+            y_train_oh,
+            validation_data=(
+                {
+                    "signal_input": Xs_test,
+                    "feature_input": Xf_test
+                },
+                y_test_oh
+            ),
+            epochs=n_epochs,
+            batch_size=batch_size,
+            class_weight=class_weights,
+            callbacks=callbacks,
+            verbose=2
+        )
+
+        print(f"Final val acc: {history.history['val_accuracy'][-1]:.4f}")
+
+        # --- Predictions ONCE ---
+        cnn_proba = model.predict(
+            {
+                "signal_input": Xs_test,
+                "feature_input": Xf_test
+            },
+            batch_size=batch_size,
+            verbose=0
+        )
+
+        rf_proba = train_rf_fold(Xf_train, y_train, Xf_test)
+
+        # 🔥 Sweep BOTH weight and smoothing
+        for w in rf_weights:
+
+            base_proba = w * rf_proba + (1 - w) * cnn_proba
+
+            for s in smoothing_windows:
+
+                final_proba = smooth_proba_grouped(
+                    base_proba,
+                    groups_test,
+                    window=s
+                )
+
+                final_proba /= final_proba.sum(axis=1, keepdims=True)
+
+                y_pred = np.argmax(final_proba, axis=1) + 1
+
+                fold_metrics = compute_fold_metrics(
+                    y_true=y_test,
+                    y_pred=y_pred,
+                    y_proba=final_proba,
+                    class_labels=class_labels
+                )
+
+                results[(w, s)].append(fold_metrics)
+
+        # --- Memory cleanup ---
+        tf.keras.backend.clear_session()
+        del model, cnn_proba, rf_proba
+        gc.collect()
+
+    # --- Summarize ---
+    summary_table = []
+
+    for (w, s), folds in results.items():
+        summary = summarize_cv_results(folds)
+
+        summary_table.append({
+            "rf_weight": w,
+            "cnn_weight": 1 - w,
+            "smoothing": s,
+            "accuracy": summary["accuracy"],
+            "balanced_accuracy": summary["balanced_accuracy"],
+            "f1_macro": summary["f1_macro"]
+        })
+
+    df = pd.DataFrame(summary_table)
+
+    df["score"] = 0.5 * df["balanced_accuracy"] + 0.5 * df["f1_macro"]
+    df = df.sort_values(by="score", ascending=False)
+
+    print("\nFINAL RESULTS:\n")
+    print(df)
+
+    return df

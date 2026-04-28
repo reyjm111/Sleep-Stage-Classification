@@ -95,3 +95,39 @@ def plot_normalized_confusion_matrix(cms, class_labels, title="Normalized Confus
     plt.title(title)
     plt.tight_layout()
     plt.show()
+
+def plot_training_history(histories):
+    """
+    Plot average loss and val_loss across folds
+    """
+    plt.figure(figsize=(8, 5))
+
+    max_epochs = max(len(h["loss"]) for h in histories)
+
+    # Pad histories so they align
+    loss_matrix = []
+    val_loss_matrix = []
+
+    for h in histories:
+        loss = h["loss"]
+        val_loss = h["val_loss"]
+
+        loss = loss + [np.nan] * (max_epochs - len(loss))
+        val_loss = val_loss + [np.nan] * (max_epochs - len(val_loss))
+
+        loss_matrix.append(loss)
+        val_loss_matrix.append(val_loss)
+
+    loss_mean = np.nanmean(loss_matrix, axis=0)
+    val_loss_mean = np.nanmean(val_loss_matrix, axis=0)
+
+    plt.plot(loss_mean, label="Train Loss")
+    plt.plot(val_loss_mean, label="Val Loss")
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Average Training Curve Across Folds")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
