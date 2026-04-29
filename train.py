@@ -669,7 +669,7 @@ def sleep_model_train_weight_smoothing_sweep(
     class_labels = np.sort(np.unique(y))
     n_classes = len(class_labels)
 
-    # 🔥 store results per (weight, smoothing)
+    # store results per (weight, smoothing)
     results = {
         (w, s): []
         for w in rf_weights
@@ -720,14 +720,14 @@ def sleep_model_train_weight_smoothing_sweep(
             label - 1: weight for label, weight in zip(np.unique(y_train), cw)
         }
 
-        # --- Build model ---
+        # Build model
         model = sleep_cnn_model(
             signal_input_shape=Xs_train.shape[1:],
             feature_input_shape=Xf_train.shape[1],
             n_classes=n_classes
         )
 
-        # --- Callbacks (RESTORED) ---
+        # Callbacks
         callbacks = [
             tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
@@ -743,7 +743,6 @@ def sleep_model_train_weight_smoothing_sweep(
             )
         ]
 
-        # --- Train CNN ONCE ---
         history = model.fit(
             {
                 "signal_input": Xs_train,
@@ -766,7 +765,6 @@ def sleep_model_train_weight_smoothing_sweep(
 
         print(f"Final val acc: {history.history['val_accuracy'][-1]:.4f}")
 
-        # --- Predictions ONCE ---
         cnn_proba = model.predict(
             {
                 "signal_input": Xs_test,
@@ -778,7 +776,7 @@ def sleep_model_train_weight_smoothing_sweep(
 
         rf_proba = train_rf_fold(Xf_train, y_train, Xf_test)
 
-        # 🔥 Sweep BOTH weight and smoothing
+        # Sweep BOTH weight and smoothing
         for w in rf_weights:
 
             base_proba = w * rf_proba + (1 - w) * cnn_proba
@@ -804,12 +802,12 @@ def sleep_model_train_weight_smoothing_sweep(
 
                 results[(w, s)].append(fold_metrics)
 
-        # --- Memory cleanup ---
+        # Memory cleanup
         tf.keras.backend.clear_session()
         del model, cnn_proba, rf_proba
         gc.collect()
 
-    # --- Summarize ---
+    # Summarize
     summary_table = []
 
     for (w, s), folds in results.items():
